@@ -1,9 +1,14 @@
 /**
- * Hand-written shape of the ClimaGuard schema.
+ * Preliminary representation of the planned ClimaGuard schema.
  *
- * This mirrors `supabase/migrations/0001_phase2_accounts.sql` and must be kept
- * in step with it: the migration is the source of truth, this file only gives
- * the client type safety. No table here exists until that migration is applied.
+ * The migration does not exist yet: `supabase/migrations/0001_phase2_accounts.sql`
+ * is still to be written in Stage 2, and none of these tables exist in the
+ * Supabase project. This is a forward-looking sketch that gives the client
+ * usable types in the meantime.
+ *
+ * It must be reconciled against the actual migration once that is written and
+ * applied. At that point the migration becomes the source of truth and this
+ * file mirrors it.
  */
 
 export type Json =
