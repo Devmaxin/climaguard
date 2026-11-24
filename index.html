@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101827" />
+    <meta name="color-scheme" content="dark light" />
+
+    <title>ClimaGuard — Climate Intelligence &amp; Daily Action</title>
+    <meta
+      name="description"
+      content="ClimaGuard turns changing climate conditions into a clear daily plan. Know what's coming. Know what to do."
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ClimaGuard" />
+    <meta
+      property="og:title"
+      content="ClimaGuard — Climate Intelligence &amp; Daily Action"
+    />
+    <meta
+      property="og:description"
+      content="ClimaGuard turns changing climate conditions into a clear daily plan. Know what's coming. Know what to do."
+    />
+    <meta name="twitter:card" content="summary" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('cg-theme')
+          var theme = saved === 'light' ? 'light' : 'dark'
+          var root = document.documentElement
+          root.classList.remove('light', 'dark')
+          root.classList.add(theme)
+          root.setAttribute('data-theme', theme)
+ var colorMeta = document.querySelector('meta[name="theme-color"]')
+ if (colorMeta) {
+ colorMeta.setAttribute('content', theme === 'light' ? '#f6f8fa' : '#101827')
+ }
+        } catch (e) {
+          // localStorage unavailable; dark mode is the default
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      <div
+        style="
+          max-width: 36rem;
+          margin: 20vh auto;
+          padding: 0 1.5rem;
+          color: #eef4fa;
+          font-family: system-ui, sans-serif;
+          line-height: 1.6;
+        "
+      >
+        <strong>ClimaGuard needs JavaScript.</strong> Please enable JavaScript to
+        use the application.
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "ClimaGuard — Climate Intelligence & Daily Action Companion",
+  "short_name": "ClimaGuard",
+  "description": "Know what's coming. Know what to do.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#101827",
+  "theme_color": "#101827",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
