@@ -3,11 +3,16 @@ import { Link, NavLink } from 'react-router-dom'
 import { BrandLockup } from '@/components/brand/brand'
 import { Container } from '@/components/layout/container'
 import { MobileNav } from '@/components/layout/mobile-nav'
+import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { useAuth } from '@/hooks/use-auth'
 import { productNavigation } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
 
 function SiteHeader() {
+const { status } = useAuth()
+const signedIn = status === 'authenticated'
+
 return (
 <header className="sticky top-0 z-50 border-b border-hairline bg-surface-strong backdrop-blur-xl">
 <Container className="relative flex h-16 items-center justify-between gap-4">
@@ -49,6 +54,15 @@ isActive && 'text-foreground',
 Preview build
 </span>
 <ThemeToggle />
+{signedIn ? (
+<Button asChild variant="default" size="sm">
+<Link to="/app">Open app</Link>
+</Button>
+) : (
+<Button asChild variant="secondary" size="sm">
+<Link to="/login">Sign in</Link>
+</Button>
+)}
 <MobileNav />
 </div>
 </Container>

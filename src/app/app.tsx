@@ -1,5 +1,6 @@
 import { RouterProvider } from 'react-router-dom'
 
+import { AuthProvider } from '@/lib/auth/auth-provider'
 import { ThemeProvider } from '@/lib/theme-provider'
 import { router } from '@/app/router'
 
@@ -10,7 +11,9 @@ type AppProps = {
 function App({ initialTheme }: AppProps) {
   return (
     <ThemeProvider initialTheme={initialTheme}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ThemeProvider>
   )
 }
