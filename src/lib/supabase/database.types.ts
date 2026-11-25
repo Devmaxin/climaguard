@@ -29,6 +29,17 @@ export type UnitSystem = 'metric' | 'imperial'
 /** Matches the `user_preferences.digest_frequency` check constraint. */
 export type DigestFrequency = 'daily' | 'weekly' | 'off'
 
+/** Matches the `climate_forecasts.variable` check constraint. */
+export type ClimateVariable =
+  | 'temperature_2m'
+  | 'wind_speed'
+  | 'wind_direction'
+  | 'precipitation'
+  | 'pressure_msl'
+
+/** Matches the `climate_forecasts.unit` check constraint. */
+export type ClimateUnit = 'degC' | 'kmh' | 'deg' | 'mm' | 'hPa'
+
 /** Matches the allowed members of `user_preferences.hazard_interests`. */
 export type HazardInterest =
   | 'flood'
@@ -124,6 +135,73 @@ export type Database = {
           city_key?: CityKey
           label?: string
           is_primary?: boolean
+        }
+        Relationships: []
+      }
+      climate_forecasts: {
+        Row: {
+          id: number
+          city_key: CityKey
+          variable: ClimateVariable
+          value: number
+          unit: ClimateUnit
+          valid_time: string
+          forecast_reference_time: string
+          forecast_step: number
+          source: string
+          source_licence: string
+          interpolation: 'bilinear' | 'nearest'
+          fetched_at: string
+        }
+        Insert: {
+          city_key: CityKey
+          variable: ClimateVariable
+          value: number
+          unit: ClimateUnit
+          valid_time: string
+          forecast_reference_time: string
+          forecast_step: number
+          source?: string
+          source_licence?: string
+          interpolation?: 'bilinear' | 'nearest'
+          fetched_at?: string
+        }
+        Update: {
+          value?: number
+          unit?: ClimateUnit
+          valid_time?: string
+          forecast_reference_time?: string
+          forecast_step?: number
+          source?: string
+          source_licence?: string
+          interpolation?: 'bilinear' | 'nearest'
+          fetched_at?: string
+        }
+        Relationships: []
+      }
+      climate_ingest_log: {
+        Row: {
+          id: number
+          started_at: string
+          finished_at: string | null
+          status: 'success' | 'skipped' | 'failed'
+          forecast_reference_time: string | null
+          rows_written: number | null
+          error: string | null
+        }
+        Insert: {
+          started_at?: string
+          finished_at?: string | null
+          status: 'success' | 'skipped' | 'failed'
+          forecast_reference_time?: string | null
+          rows_written?: number | null
+          error?: string | null
+        }
+        Update: {
+          finished_at?: string | null
+          status?: 'success' | 'skipped' | 'failed'
+          rows_written?: number | null
+          error?: string | null
         }
         Relationships: []
       }

@@ -20,6 +20,7 @@ import type { HazardInterest } from '@/lib/supabase/database.types'
 import { useAccount } from '@/hooks/use-account'
 import { useAuth } from '@/hooks/use-auth'
 import { useDocumentTitle } from '@/hooks/use-document-title'
+import { ClimateForecastCard } from '@/features/app/climate-forecast-card'
 
 const hazardLabels: Record<HazardInterest, string> = {
   flood: 'Flood',
@@ -89,8 +90,8 @@ function AppHomePage() {
           {displayName ? `Welcome, ${displayName}.` : 'Welcome to ClimaGuard.'}
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-fog">
-          Your account is set up. The climate intelligence dashboard is being built — nothing on
-          this page is live weather data, a forecast or a risk score.
+          Your account is set up. Forecast values below come from ECMWF's operational model; risk
+          scoring is still being built and is not shown anywhere on this page.
         </p>
 
         <div className="mt-9 grid gap-4 lg:grid-cols-3">
@@ -189,6 +190,10 @@ function AppHomePage() {
           </Card>
         </div>
 
+        {primaryLocation && primaryCity ? (
+          <ClimateForecastCard cityKey={primaryLocation.city_key} cityName={primaryCity.name} />
+        ) : null}
+
         <Card className="mt-4 rounded-3xl border-cyan/25 bg-cyan/[0.05] p-5 sm:p-6">
           <div className="flex items-start gap-4">
             <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-2xl border border-cyan/30 bg-cyan/10 text-cyan-ink">
@@ -196,17 +201,17 @@ function AppHomePage() {
             </span>
             <div className="min-w-0">
               <h2 className="font-display text-lg font-semibold tracking-[-0.02em] text-foreground">
-                The climate dashboard is being built
+                Risk signals are still being built
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-fog">
-                Live conditions, forecasts and risk signals are the next phase of work. Until they
-                ship, this page deliberately shows none — no placeholder figures, no invented
-                alerts.
+                Forecast data is now live. Hazard scoring — flood, heat and storm triggers derived
+                from it — is the next stage of work. Until it ships, this page deliberately shows
+                no risk figures rather than inventing them.
               </p>
               <ul className="mt-4 grid gap-2 text-xs text-fog sm:grid-cols-2">
                 <li className="flex items-center gap-2">
                   <Sparkles aria-hidden="true" className="size-3.5 text-lime-ink" />
-                  Live conditions and forecasts
+                  ECMWF forecasts — now live
                 </li>
                 <li className="flex items-center gap-2">
                   <Compass aria-hidden="true" className="size-3.5 text-cyan-ink" />
