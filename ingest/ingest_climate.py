@@ -30,6 +30,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 
+import eccodes
 import numpy as np
 import requests
 import xarray as xr
@@ -172,6 +173,50 @@ def open_param(path: str, short_name: str) -> xr.DataArray:
     return dataset[names[0]]
 
 
+def read_grib_metadata(path: str, short_name: str) -> dict[str, Any]:
+    """Read accumulation metadata from the GRIB messages themselves.
+
+    cfgrib merges every step of a parameter into one array and drops the
+    attributes that differ between messages, so `startStep` and `stepRange`
+    are absent from the merged variable. eccodes reads each message as
+    encoded, which is what the accumulation mode has to be decided from.
+
+    A cumulative accumulation starts at step 0 in every message. Anything
+    else is a per-interval total, so one of the non-zero start steps is
+    reported instead.
+    """
+    messages: list[dict[str, Any]] = []
+
+    with open(path, "rb") as handle:
+        while True:
+            gid = eccodes.codes_grib_new_from_file(handle)
+            if gid is None:
+                break
+            try:
+                if eccodes.codes_get(gid, "shortName") != short_name:
+                    continue
+                try:
+                    messages.append(
+                        {
+                            "GRIB_stepType": eccodes.codes_get(gid, "stepType"),
+                            "GRIB_startStep": eccodes.codes_get(gid, "startStep"),
+                            "GRIB_stepRange": eccodes.codes_get(gid, "stepRange"),
+                        }
+                    )
+                except KeyError:  # message without accumulation keys
+                    continue
+            finally:
+                eccodes.codes_release(gid)
+
+    if not messages:
+        raise IngestError(f"{short_name}: no GRIB messages found in {path}")
+
+    starts = {message["GRIB_startStep"] for message in messages}
+    if starts == {0}:
+        return messages[0]
+    return next(message for message in messages if message["GRIB_startStep"] != 0)
+
+
 def values_by_step(field: xr.DataArray, name: str) -> tuple[dict[int, Any], dict[str, Any]]:
     """Split a decoded parameter into per-step fields plus its GRIB metadata."""
     attrs = dict(field.attrs)
@@ -307,12 +352,15 @@ class Supabase:
 def build_rows(cycle: datetime, dataset_dir: str, client: Client) -> list[dict[str, Any]]:
     """Download, decode, interpolate and normalise one forecast cycle."""
     fields: dict[str, tuple[dict[int, Any], dict[str, Any]]] = {}
+    precipitation_metadata: dict[str, Any] = {}
 
     for param in ("2t", "10u", "10v", "msl", "tp"):
         path = os.path.join(dataset_dir, f"{param}.grib2")
         download(client, param, cycle, path)
         field = open_param(path, param)
         fields[param] = values_by_step(field, param)
+        if param == "tp":
+            precipitation_metadata = read_grib_metadata(path, param)
 
     rows: list[dict[str, Any]] = []
 
@@ -350,10 +398,10 @@ def build_rows(cycle: datetime, dataset_dir: str, client: Client) -> list[dict[s
             add(city, "wind_speed", "kmh", step, math.hypot(u, v) * 3.6, "bilinear")
             add(city, "wind_direction", "deg", step, wind_direction_deg(u, v), "bilinear")
 
-        tp_fields, tp_attrs = fields["tp"]
+        tp_fields, _ = fields["tp"]
         steps = sorted(tp_fields)
         raw = [sample_point(tp_fields[step], lat, lon, "nearest") for step in steps]
-        mode = detect_mode(tp_attrs)
+        mode = detect_mode(precipitation_metadata)
         for step, metres in interval_totals(raw, steps, mode):
             add(city, "precipitation", "mm", step, metres * 1000.0, "nearest")
 
