@@ -1,9 +1,12 @@
 import { Loader2, ShieldAlert } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { useAccount } from '@/hooks/use-account'
 import { useAuth } from '@/hooks/use-auth'
+import { cn } from '@/lib/utils'
 
 type RedirectState = { from?: string }
 
@@ -75,6 +78,103 @@ function RequireAuth() {
   return <Outlet />
 }
 
+function AccountGate({
+  tone,
+  title,
+  message,
+  action,
+}: {
+  tone: 'error' | 'info'
+  title: string
+  message: string
+  action?: ReactNode
+}) {
+  const Icon = tone === 'error' ? ShieldAlert : Loader2
+
+  return (
+    <div className="flex min-h-svh items-center justify-center px-5 py-16">
+      <Card className="w-full max-w-md rounded-3xl p-7">
+        <span
+          className={cn(
+            'inline-flex size-9 items-center justify-center rounded-xl border',
+            tone === 'error'
+              ? 'border-danger/35 bg-danger/10 text-danger-ink'
+              : 'border-hairline bg-veil text-cyan-ink',
+          )}
+        >
+          <Icon aria-hidden="true" className={cn('size-4', tone === 'info' && 'animate-spin')} />
+        </span>
+        <h1 className="mt-4 font-display text-xl font-semibold tracking-[-0.02em]">{title}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-fog">{message}</p>
+        {action ? <div className="mt-6">{action}</div> : null}
+      </Card>
+    </div>
+  )
+}
+
+/**
+ * `/app` is only for accounts that finished onboarding. The profile is read once
+ * by the account provider, so this guard never triggers a query of its own.
+ */
+function RequireOnboarded() {
+  const { status, profile, error, refresh } = useAccount()
+
+  if (status === 'loading' || status === 'idle') {
+    return <AuthGate label="Loading your account" />
+  }
+
+  if (status === 'error' || !profile) {
+    return (
+      <AccountGate
+        tone="error"
+        title="We could not load your account"
+        message={error ?? 'Your profile record could not be read. Try again in a moment.'}
+        action={
+          <Button variant="secondary" onClick={() => void refresh()}>
+            Try again
+          </Button>
+        }
+      />
+    )
+  }
+
+  if (!profile.onboarding_completed) {
+    return <Navigate to="/onboarding" replace />
+  }
+
+  return <Outlet />
+}
+
+/** The onboarding flow itself: signed in, but not yet set up. */
+function OnboardingRoute() {
+  const { status, profile, error, refresh } = useAccount()
+
+  if (status === 'loading' || status === 'idle') {
+    return <AuthGate label="Loading your account" />
+  }
+
+  if (status === 'error' || !profile) {
+    return (
+      <AccountGate
+        tone="error"
+        title="We could not load your account"
+        message={error ?? 'Your profile record could not be read. Try again in a moment.'}
+        action={
+          <Button variant="secondary" onClick={() => void refresh()}>
+            Try again
+          </Button>
+        }
+      />
+    )
+  }
+
+  if (profile.onboarding_completed) {
+    return <Navigate to="/app" replace />
+  }
+
+  return <Outlet />
+}
+
 /**
  * Keeps signed-in people out of the account forms. While the session is still
  * loading nothing renders, so a returning user never sees the login form flash
@@ -94,4 +194,4 @@ function RedirectIfAuthenticated() {
   return <Outlet />
 }
 
-export { RedirectIfAuthenticated, RequireAuth }
+export { OnboardingRoute, RedirectIfAuthenticated, RequireAuth, RequireOnboarded }

@@ -4,8 +4,14 @@ import { AppShell } from '@/components/layout/app-shell'
 import { AppHomePage } from '@/features/app/app-home-page'
 import { AuthLayout } from '@/features/auth/auth-layout'
 import { LoginPage } from '@/features/auth/login-page'
-import { RedirectIfAuthenticated, RequireAuth } from '@/features/auth/route-guards'
+import {
+  OnboardingRoute,
+  RedirectIfAuthenticated,
+  RequireAuth,
+  RequireOnboarded,
+} from '@/features/auth/route-guards'
 import { SignUpPage } from '@/features/auth/signup-page'
+import { OnboardingPage } from '@/features/onboarding/onboarding-page'
 import { DesignSystemPage } from '@/features/design-system/design-system-page'
 import { RouteErrorPage } from '@/features/errors/route-error-page'
 import { HomePage } from '@/features/home/home-page'
@@ -29,8 +35,22 @@ const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           {
-            path: 'app',
-            element: <AppHomePage />,
+            element: <RequireOnboarded />,
+            children: [
+              {
+                path: 'app',
+                element: <AppHomePage />,
+              },
+            ],
+          },
+          {
+            element: <OnboardingRoute />,
+            children: [
+              {
+                path: 'onboarding',
+                element: <OnboardingPage />,
+              },
+            ],
           },
         ],
       },
