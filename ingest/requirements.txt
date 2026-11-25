@@ -1,0 +1,11 @@
+# Ingestion job dependencies. The system ecCodes library is installed by the
+# workflow via apt (`libeccodes-dev`); the Python packages below bind to it.
+ecmwf-opendata>=0.3.0
+cfgrib>=0.9.10.4
+eccodes>=1.6.0
+xarray>=2024.1.0
+# xarray's Dataset.interp, used for bilinear sampling to city coordinates,
+# requires scipy; without it every non-precipitation variable fails to decode.
+scipy>=1.11.0
+numpy>=1.26.0
+requests>=2.31.0

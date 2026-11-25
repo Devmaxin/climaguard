@@ -18,6 +18,12 @@ dist-ssr
 !.env.example
 !.env.*.example
 
+# Python ingestion job
+__pycache__/
+*.py[cod]
+.venv/
+ingest/*.grib2
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

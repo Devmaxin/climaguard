@@ -1,0 +1,65 @@
+name: Ingest climate forecasts
+
+# ECMWF publishes 7-9 hours after each 00/06/12/18 UTC initialisation, so the
+# runs sit ~9 hours after each cycle. GitHub does not guarantee the exact
+# minute (or that a scheduled run fires at all under load), which is fine:
+# the script discovers the newest published cycle itself and skips a cycle it
+# has already ingested.
+on:
+  schedule:
+    - cron: '0 9,15,21,3 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Re-ingest even if this cycle already succeeded
+        type: boolean
+        default: false
+
+# Least privilege. The job only needs the repository's own files.
+permissions:
+  contents: read
+
+# Never let two runs race on the same rows.
+concurrency:
+  group: ingest-climate
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ecCodes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libeccodes-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r ingest/requirements.txt
+
+      - name: Run precipitation unit tests
+        working-directory: ingest
+        run: python -m unittest test_precipitation -v
+
+      # Secrets are only read here, never echoed, never written to a file.
+      - name: Ingest latest forecast cycle
+        working-directory: ingest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            python ingest_climate.py --force
+          else
+            python ingest_climate.py
+          fi
