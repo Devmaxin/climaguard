@@ -154,17 +154,26 @@ def download(client: Client, param: str, cycle: datetime, target: str) -> str:
     return target
 
 
-def open_param(path: str, short_name: str) -> xr.Dataset:
-    return xr.open_dataset(
+def open_param(path: str, short_name: str) -> xr.DataArray:
+    """Open the one parameter matching a GRIB shortName.
+
+    cfgrib names the resulting variable after the GRIB `name`, not the
+    `shortName` used to filter it ("2t" decodes to a variable called "t2m"),
+    so the single data variable is taken by position instead.
+    """
+    dataset = xr.open_dataset(
         path,
         engine="cfgrib",
         backend_kwargs={"filter_by_keys": {"shortName": short_name}, "indexpath": ""},
     )
+    names = list(dataset.data_vars)
+    if len(names) != 1:
+        raise IngestError(f"{short_name}: expected one data variable, found {names}")
+    return dataset[names[0]]
 
 
-def values_by_step(dataset: xr.Dataset, name: str) -> tuple[dict[int, Any], dict[str, Any]]:
+def values_by_step(field: xr.DataArray, name: str) -> tuple[dict[int, Any], dict[str, Any]]:
     """Split a decoded parameter into per-step fields plus its GRIB metadata."""
-    field = dataset[name]
     attrs = dict(field.attrs)
 
     if "step" in field.dims:
@@ -302,8 +311,8 @@ def build_rows(cycle: datetime, dataset_dir: str, client: Client) -> list[dict[s
     for param in ("2t", "10u", "10v", "msl", "tp"):
         path = os.path.join(dataset_dir, f"{param}.grib2")
         download(client, param, cycle, path)
-        dataset = open_param(path, param)
-        fields[param] = values_by_step(dataset, param)
+        field = open_param(path, param)
+        fields[param] = values_by_step(field, param)
 
     rows: list[dict[str, Any]] = []
 
