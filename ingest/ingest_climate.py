@@ -54,6 +54,11 @@ SOURCE_LABEL = "ECMWF Open Data (IFS 0.25°)"
 LICENCE = "CC BY 4.0"
 RETENTION_RUNS = 2
 
+# The client defaults to 500 tries with a fixed 120-second wait, which outlives
+# the workflow's 60-minute timeout. Keep individual requests bounded instead.
+RETRY_TRIES = 4
+RETRY_BACKOFF = (5.0, 30.0, 2.0)
+
 # Sanity bounds. A value outside these means something went wrong upstream and
 # the run should fail loudly instead of writing nonsense to the database.
 PLAUSIBLE = {
@@ -110,6 +115,17 @@ def sanitize_error(exc: BaseException) -> str:
 # ---------------------------------------------------------------------------
 # ECMWF retrieval
 # ---------------------------------------------------------------------------
+
+
+def make_client() -> Client:
+    return Client(
+        source="aws",
+        model="ifs",
+        resol="0p25",
+        maximum_retries=RETRY_TRIES,
+        retry_after=RETRY_BACKOFF,
+        use_server_retry_after=False,
+    )
 
 
 def discover_latest_cycle(client: Client) -> datetime:
@@ -440,7 +456,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.dry_run:
             db = Supabase(url, key)
 
-        client = Client(source="aws", model="ifs", resol="0p25")
+        client = make_client()
         cycle = discover_latest_cycle(client)
         print(f"latest published cycle: {iso(cycle)}", flush=True)
 
