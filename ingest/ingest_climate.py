@@ -36,7 +36,7 @@ import requests
 import xarray as xr
 from ecmwf.opendata import Client
 
-from precipitation import detect_mode, interval_totals
+from precipitation import detect_mode, interval_totals, to_millimetres
 
 # ---------------------------------------------------------------------------
 # Scope
@@ -400,10 +400,13 @@ def build_rows(cycle: datetime, dataset_dir: str, client: Client) -> list[dict[s
 
         tp_fields, _ = fields["tp"]
         steps = sorted(tp_fields)
-        raw = [sample_point(tp_fields[step], lat, lon, "nearest") for step in steps]
+        # cfgrib decodes `tp` in metres; every downstream step is in mm.
+        raw_mm = to_millimetres(
+            [sample_point(tp_fields[step], lat, lon, "nearest") for step in steps]
+        )
         mode = detect_mode(precipitation_metadata)
-        for step, metres in interval_totals(raw, steps, mode):
-            add(city, "precipitation", "mm", step, metres * 1000.0, "nearest")
+        for step, millimetres in interval_totals(raw_mm, steps, mode):
+            add(city, "precipitation", "mm", step, millimetres, "nearest")
 
     return rows
 

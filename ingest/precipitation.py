@@ -15,9 +15,29 @@ from typing import Any, Mapping, Sequence
 CUMULATIVE = "cumulative"
 INTERVAL = "interval"
 
-# Floating point noise from GRIB packing can make a strictly non-decreasing
-# series dip microscopically. Anything smaller than this is treated as zero.
-NEGATIVE_TOLERANCE_MM = 1e-6
+# A cumulative total must not decrease. Two messages are packed independently,
+# each with its own binary scale factor and reference value, so a grid point
+# can step back by a few quanta between them even in a monotonically wetting
+# series. In the failing message the values were exact multiples of 2**-16 m
+# (148 and 144 quanta), i.e. a quantum of 0.0153 mm and a dip of 4 quanta
+# (0.061 mm).
+#
+# 0.1 mm is therefore a small multiple of the encoding resolution (about 6.5
+# quanta at that scale factor) and still below the 0.1 mm at which this product
+# reports rainfall, so nothing a reader could act on is hidden. A larger
+# decrease is not packing noise and keeps raising.
+NEGATIVE_TOLERANCE_MM = 0.1
+
+
+def to_millimetres(values: Sequence[float]) -> list[float]:
+    """Convert ECMWF `tp` totals from metres (cfgrib's unit) to millimetres.
+
+    Everything below this boundary is millimetres, including the tolerance in
+    `interval_totals`. Comparing a millimetre tolerance against metre-decoded
+    values is what made the 2026-11-25 run fail: 1e-6 was read as 1e-6 m,
+    i.e. 0.001 mm, a fifteenth of one packing quantum.
+    """
+    return [float(value) * 1000.0 for value in values]
 
 
 def detect_mode(attrs: Mapping[str, Any]) -> str:
@@ -61,6 +81,9 @@ def interval_totals(
 ) -> list[tuple[int, float]]:
     """Turn a precipitation series into (step, mm) pairs for each interval.
 
+    `values` must already be in millimetres; pass decoded `tp` through
+    `to_millimetres()` first.
+
     The returned step is the *end* of the interval: the value reported at
     step 6 covers the hours from step 3 to step 6. Step 0 has no interval
     behind it and is dropped.
@@ -88,8 +111,9 @@ def interval_totals(
         if delta < -NEGATIVE_TOLERANCE_MM:
             raise ValueError(
                 "cumulative precipitation decreased "
-                f"from step {prev_step} ({prev_value}) to step {step} ({value}); "
-                "the accumulation mode was probably misdetected"
+                f"from step {prev_step} ({prev_value} mm) to step {step} ({value} mm), "
+                f"a drop of {abs(delta):.4f} mm beyond the {NEGATIVE_TOLERANCE_MM} mm "
+                "packing tolerance; the accumulation mode was probably misdetected"
             )
         totals.append((int(step), max(delta, 0.0)))
     return totals
