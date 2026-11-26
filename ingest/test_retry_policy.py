@@ -57,7 +57,7 @@ class MakeClientTests(unittest.TestCase):
             ingest_climate.make_client()
 
         client_class.assert_called_once_with(
-            source="aws",
+            source="ecmwf",
             model="ifs",
             resol="0p25",
             maximum_retries=4,

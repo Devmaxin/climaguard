@@ -119,7 +119,7 @@ def sanitize_error(exc: BaseException) -> str:
 
 def make_client() -> Client:
     return Client(
-        source="aws",
+        source="ecmwf",
         model="ifs",
         resol="0p25",
         maximum_retries=RETRY_TRIES,
