@@ -13,7 +13,7 @@ npm install --save-dev --save-exact supabase@3.4.0
 npx supabase --version
 ```
 
-Always run it through `npx supabase` (or `node_modules/.bin/supabase`) so everyone uses the pinned version. Requires Node >= 20.19.0.
+Always run it through `npx supabase` (or `node_modules/.bin/supabase`) so everyone uses the pinned version. Requires the same Node.js versions as the root package: `^22.18.0 || ^24.0.0`.
 
 ## One-time setup
 

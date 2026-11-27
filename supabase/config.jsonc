@@ -449,6 +449,16 @@
     }
   },
 
+  "functions": {
+    // The Daily Brief authenticates the caller itself: the gateway rejects a
+    // request with no valid access token before the function runs, and the
+    // function then derives the user from that same token for every query.
+    "daily-brief": {
+      "enabled": true,
+      "verify_jwt": true
+    }
+  },
+
   "edge_runtime": {
     "enabled": true,
     // Supported request policies: `oneshot`, `per_worker`.

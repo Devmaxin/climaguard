@@ -1,3 +1,4 @@
+import { closestValidPoint, selectNewestRun } from '@/lib/climate/snapshot'
 import { requireSupabase } from '@/lib/supabase/client'
 import type {
   CityKey,
@@ -23,11 +24,18 @@ export type ClimateSnapshot = {
 }
 
 /**
- * A forecast is treated as stale once the newest successful ingest is older
- * than this. ECMWF runs every six hours and publishes 7-9 hours later, so a
- * healthy installation is never anywhere near twelve hours behind.
+ * A forecast is treated as stale once its model run is older than this. ECMWF
+ * runs every six hours and publishes 7-9 hours later, so a healthy installation
+ * is never anywhere near twelve hours behind.
+ *
+ * The age is measured from the model run's reference time, not from the last
+ * ingest: re-storing an old cycle refreshes `fetched_at` and must not make that
+ * run look current.
  */
 export const STALE_AFTER_HOURS = 12
+
+/** Mirrors the edge function's tolerance for a reference time slightly ahead. */
+const REFERENCE_FUTURE_TOLERANCE_MS = 60 * 60 * 1000
 
 export class ClimateError extends Error {
   constructor(message: string) {
@@ -36,12 +44,17 @@ export class ClimateError extends Error {
   }
 }
 
-export function isStale(fetchedAt: string, now: number = Date.now()): boolean {
-  const fetched = Date.parse(fetchedAt)
+/**
+ * True when a stored run cannot be trusted as current: its reference time is
+ * unparseable, in the future, or older than `STALE_AFTER_HOURS`.
+ */
+export function isStale(referenceTime: string, now: number = Date.now()): boolean {
+  const reference = Date.parse(referenceTime)
 
-  if (Number.isNaN(fetched)) return true
+  if (Number.isNaN(reference)) return true
+  if (reference - now > REFERENCE_FUTURE_TOLERANCE_MS) return true
 
-  return now - fetched > STALE_AFTER_HOURS * 60 * 60 * 1000
+  return now - reference > STALE_AFTER_HOURS * 60 * 60 * 1000
 }
 
 type ForecastRow = {
@@ -84,10 +97,10 @@ export async function fetchClimateSnapshot(cityKey: CityKey): Promise<ClimateSna
 
   const rows = (data ?? []) as ForecastRow[]
 
-  if (rows.length === 0) return null
+  const latestRun = selectNewestRun(rows)
+  if (!latestRun) return null
 
-  const referenceTime = rows[0].forecast_reference_time
-  const latest = rows.filter((row) => row.forecast_reference_time === referenceTime)
+  const { referenceTime, rows: latest } = latestRun
 
   return {
     cityKey,
@@ -111,18 +124,7 @@ export function closestPoint(
   variable: ClimateVariable,
   at: Date = new Date(),
 ): ClimatePoint | null {
-  const candidates = points.filter((point) => point.variable === variable)
-
-  if (candidates.length === 0) return null
-
-  const target = at.getTime()
-
-  return candidates.reduce((best, point) =>
-    Math.abs(Date.parse(point.validTime) - target) <
-    Math.abs(Date.parse(best.validTime) - target)
-      ? point
-      : best,
-  )
+  return closestValidPoint(points, variable, at.getTime())
 }
 
 /** The series for one variable, ordered by valid time, limited to a window. */

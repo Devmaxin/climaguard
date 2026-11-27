@@ -101,7 +101,7 @@ function ClimateForecastCard({ cityKey, cityName }: { cityKey: CityKey; cityName
         {status.kind === 'ready' ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="outline">Model run {formatTime(status.snapshot.referenceTime)}</Badge>
-            {isStale(status.snapshot.fetchedAt) ? (
+            {isStale(status.snapshot.referenceTime) ? (
               <Badge variant="outline">
                 <AlertTriangle aria-hidden="true" className="size-3" />
                 Stale

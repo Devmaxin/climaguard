@@ -21,6 +21,7 @@ import { useAccount } from '@/hooks/use-account'
 import { useAuth } from '@/hooks/use-auth'
 import { useDocumentTitle } from '@/hooks/use-document-title'
 import { ClimateForecastCard } from '@/features/app/climate-forecast-card'
+import { DailyBriefCard } from '@/features/app/daily-brief-card'
 
 const hazardLabels: Record<HazardInterest, string> = {
   flood: 'Flood',
@@ -90,8 +91,8 @@ function AppHomePage() {
           {displayName ? `Welcome, ${displayName}.` : 'Welcome to ClimaGuard.'}
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-fog">
-          Your account is set up. Forecast values below come from ECMWF's operational model; risk
-          scoring is still being built and is not shown anywhere on this page.
+          Your account is set up. Forecast values below come from ECMWF's operational model, and the
+          daily brief is derived from that same stored forecast.
         </p>
 
         <div className="mt-9 grid gap-4 lg:grid-cols-3">
@@ -191,7 +192,10 @@ function AppHomePage() {
         </div>
 
         {primaryLocation && primaryCity ? (
-          <ClimateForecastCard cityKey={primaryLocation.city_key} cityName={primaryCity.name} />
+          <>
+            <ClimateForecastCard cityKey={primaryLocation.city_key} cityName={primaryCity.name} />
+            <DailyBriefCard cityKey={primaryLocation.city_key} />
+          </>
         ) : null}
 
         <Card className="mt-4 rounded-3xl border-cyan/25 bg-cyan/[0.05] p-5 sm:p-6">
@@ -201,21 +205,22 @@ function AppHomePage() {
             </span>
             <div className="min-w-0">
               <h2 className="font-display text-lg font-semibold tracking-[-0.02em] text-foreground">
-                Risk signals are still being built
+                What this page assesses — and what it does not
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-fog">
-                Forecast data is now live. Hazard scoring — flood, heat and storm triggers derived
-                from it — is the next stage of work. Until it ships, this page deliberately shows
-                no risk figures rather than inventing them.
+                Forecast data is live, and the brief above is built from it. Only wind is classified
+                so far, against the published Beaufort scale. Flood, heat, air quality, drought and
+                coastal hazards are deliberately left unassessed rather than estimated, and nothing
+                on this page is invented to fill the gap.
               </p>
               <ul className="mt-4 grid gap-2 text-xs text-fog sm:grid-cols-2">
                 <li className="flex items-center gap-2">
                   <Sparkles aria-hidden="true" className="size-3.5 text-lime-ink" />
-                  ECMWF forecasts — now live
+                  ECMWF forecasts — live
                 </li>
                 <li className="flex items-center gap-2">
                   <Compass aria-hidden="true" className="size-3.5 text-cyan-ink" />
-                  Hazard-specific risk signals
+                  Wind risk classification — live
                 </li>
               </ul>
             </div>
