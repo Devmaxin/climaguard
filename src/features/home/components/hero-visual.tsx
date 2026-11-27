@@ -3,12 +3,12 @@ import { BrandMark } from '@/components/brand/brand'
 const previewStatus = [
   { label: 'Shell', value: 'Ready', tone: 'bg-lime' },
   { label: 'Routes', value: 'Ready', tone: 'bg-lime' },
-  { label: 'Data', value: 'Deferred', tone: 'bg-heat' },
+  { label: 'Data', value: 'In app', tone: 'bg-lime' },
 ] as const
 
 /**
- * A deliberately abstract preview of the product surface. It communicates the
- * foundation state without inventing climate readings or locations.
+ * A deliberately abstract representation of the product surface. It shows the
+ * shape of the app without inventing climate readings or locations.
  */
 function HeroVisual() {
   return (
@@ -21,11 +21,11 @@ function HeroVisual() {
       <div className="relative overflow-hidden rounded-[2rem] border border-hairline bg-surface p-4 shadow-[0_40px_120px_-50px_rgba(53,198,217,0.5)] backdrop-blur-md sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <p className="text-[0.6rem] font-medium uppercase tracking-[0.22em] text-fog">
-            Atmospheric preview
+            Atmospheric snapshot
           </p>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-heat/25 bg-heat/10 px-2.5 py-1 text-[0.58rem] font-medium uppercase tracking-[0.14em] text-heat-ink">
-            <span aria-hidden="true" className="size-1 rounded-full bg-heat" />
-            No live data
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-veil px-2.5 py-1 text-[0.58rem] font-medium uppercase tracking-[0.14em] text-haze">
+            <span aria-hidden="true" className="size-1 rounded-full bg-cyan" />
+            Illustrative
           </span>
         </div>
 

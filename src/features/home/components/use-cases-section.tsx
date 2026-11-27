@@ -8,7 +8,7 @@ import { SectionHeading } from '@/components/ui/section-heading'
 
 const personalActions = [
   'A daily brief for your locations',
-  'Heat and rainfall risk in plain language',
+  'Wind risk in plain language',
   'Before, during and after recommendations',
 ]
 

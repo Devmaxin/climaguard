@@ -60,11 +60,11 @@ class MakeClientTests(unittest.TestCase):
             source="ecmwf",
             model="ifs",
             resol="0p25",
-            maximum_retries=4,
+            maximum_retries=6,
             retry_after=(5.0, 30.0, 2.0),
             use_server_retry_after=False,
         )
-        self.assertEqual(ingest_climate.RETRY_TRIES, 4)
+        self.assertEqual(ingest_climate.RETRY_TRIES, 6)
         self.assertEqual(ingest_climate.RETRY_BACKOFF, (5.0, 30.0, 2.0))
 
 
@@ -97,11 +97,11 @@ class BackoffTests(unittest.TestCase):
         self.assertEqual(len(calls), 3)
         self.assertEqual(sleeps, [5.0, 10.0])
 
-    def test_persistent_503_stops_after_four_tries(self):
-        result, calls, sleeps = self.run_policy([FakeResponse(503) for _ in range(4)])
+    def test_persistent_503_stops_after_six_tries(self):
+        result, calls, sleeps = self.run_policy([FakeResponse(503) for _ in range(6)])
 
-        self.assertEqual(len(calls), 4)
-        self.assertEqual(sleeps, [5.0, 10.0, 20.0])
+        self.assertEqual(len(calls), 6)
+        self.assertEqual(sleeps, [5.0, 10.0, 20.0, 30.0, 30.0])
         with self.assertRaises(requests.HTTPError):
             result.raise_for_status()
 
@@ -113,6 +113,68 @@ class BackoffTests(unittest.TestCase):
 
         self.assertEqual(len(calls), 2)
         self.assertEqual(sleeps, [5.0])
+
+
+class RestRetryTests(unittest.TestCase):
+    """The Supabase calls are retried on transient failures only."""
+
+    def run_request(self, effects):
+        calls = []
+        queue = iter(effects)
+
+        def fake_request(method, url, **kwargs):
+            calls.append(method)
+            item = next(queue)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        with (
+            patch.object(ingest_climate.requests, "request", side_effect=fake_request),
+            patch.object(ingest_climate.time, "sleep") as sleep,
+        ):
+            try:
+                response = ingest_climate.request_with_retry(
+                    "GET", "https://example.invalid/rest"
+                )
+            except Exception as exc:  # noqa: BLE001 - surfaced to the test
+                return exc, calls, [call.args[0] for call in sleep.call_args_list]
+        return response, calls, [call.args[0] for call in sleep.call_args_list]
+
+    def test_transient_503_is_retried(self):
+        result, calls, sleeps = self.run_request(
+            [FakeResponse(503), FakeResponse(200)]
+        )
+
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(sleeps, [2.0])
+
+    def test_connection_error_is_retried(self):
+        result, calls, sleeps = self.run_request(
+            [requests.ConnectionError("connection reset"), FakeResponse(200)]
+        )
+
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(sleeps, [2.0])
+
+    def test_client_error_is_not_retried(self):
+        result, calls, sleeps = self.run_request([FakeResponse(400)])
+
+        self.assertEqual(result.status_code, 400)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(sleeps, [])
+
+    def test_exhausted_attempts_raise(self):
+        result, calls, sleeps = self.run_request(
+            [FakeResponse(503), FakeResponse(503), FakeResponse(503)]
+        )
+
+        self.assertIsInstance(result, ingest_climate.IngestError)
+        self.assertIn("after 3 attempts", str(result))
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sleeps, [2.0, 4.0])
 
 
 class MainFailureTests(unittest.TestCase):

@@ -21,7 +21,7 @@ description:
 icon: Activity,
 title: 'Deterministic risk rules',
 description:
-'Defined thresholds decide heat and rainfall risk levels — not a language model.',
+'Defined thresholds grade wind risk on the Beaufort scale — not a language model.',
 },
 {
 icon: Cpu,
@@ -50,10 +50,10 @@ function HowItWorksSection() {
             id="how-it-works-heading"
             eyebrow="How it works"
             title="From raw signal to useful action."
-            description="A deliberate pipeline keeps numerical risk decisions deterministic and keeps AI in an explanatory role."
+            description="A deliberate pipeline keeps numerical risk decisions deterministic, with every explanation traceable to the same rules."
           />
           <Badge variant="muted" className="w-fit">
-            Architecture · integration in progress
+            Wind risk live · other hazards pending
           </Badge>
         </div>
 
@@ -82,8 +82,10 @@ function HowItWorksSection() {
         </ol>
 
         <p className="mt-6 text-xs leading-relaxed text-haze">
-          This is the intended pipeline. In this preview build, no live climate
-          data, circuit evaluation or on-chain record is connected yet.
+          This is the intended pipeline. Live ECMWF forecast data and
+          deterministic wind-risk assessment are connected today. Policy circuit
+          evaluation and on-chain records are not yet enabled, and other hazards
+          are left unassessed rather than estimated.
         </p>
       </Container>
     </section>

@@ -1,8 +1,8 @@
 import {
   Accessibility,
   ArrowRight,
+  CloudSun,
   Smartphone,
-  WifiOff,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 const heroNotes = [
   { icon: Accessibility, label: 'Accessible by default' },
   { icon: Smartphone, label: 'Mobile-first' },
-  { icon: WifiOff, label: 'Preview — no live data yet' },
+  { icon: CloudSun, label: 'Live ECMWF forecast data' },
 ] as const
 
 function HeroSection() {
@@ -27,7 +27,7 @@ function HeroSection() {
               aria-hidden="true"
               className="size-1.5 rounded-full bg-cyan"
             />
-            Climate intelligence · Preview build
+            Climate intelligence · Live forecast data
           </Badge>
 
           <h1

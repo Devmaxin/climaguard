@@ -53,8 +53,8 @@ className="rounded text-fog transition-colors hover:text-foreground"
 
 <div className="flex flex-col gap-2 border-t border-hairline pt-6 text-xs leading-relaxed text-haze sm:flex-row sm:items-center sm:justify-between">
 <p>
-© {CURRENT_YEAR} ClimaGuard. Preview build — no live climate data
-connected.
+© {CURRENT_YEAR} ClimaGuard. Forecast data from ECMWF Open Data (CC BY 4.0).
+Wind risk assessed; other hazards not yet covered.
 </p>
 <p className="text-fog">
 Know what&apos;s coming. Know what to do.

@@ -25,8 +25,10 @@ import argparse
 import math
 import os
 import re
+import signal
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
 
@@ -55,9 +57,20 @@ LICENCE = "CC BY 4.0"
 RETENTION_RUNS = 2
 
 # The client defaults to 500 tries with a fixed 120-second wait, which outlives
-# the workflow's 60-minute timeout. Keep individual requests bounded instead.
-RETRY_TRIES = 4
+# the workflow's job timeout. Keep individual requests bounded instead. Six
+# attempts ride out both a stale connection and a short upstream 503.
+RETRY_TRIES = 6
 RETRY_BACKOFF = (5.0, 30.0, 2.0)
+
+# Wall-clock ceiling for one parameter download, retries included. The client
+# exposes no transfer timeout, so without this a stalled socket is bounded only
+# by the job timeout, which would block the workflow's concurrency queue.
+DOWNLOAD_DEADLINE_SECONDS = 240
+
+# Supabase REST retries. PostgREST occasionally answers with a transient 5xx;
+# failing a fully downloaded cycle over one of those wastes the whole run.
+REST_ATTEMPTS = 3
+REST_BACKOFF_SECONDS = 2.0
 
 # Sanity bounds. A value outside these means something went wrong upstream and
 # the run should fail loudly instead of writing nonsense to the database.
@@ -112,6 +125,37 @@ def sanitize_error(exc: BaseException) -> str:
     return text[:1000]
 
 
+RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def request_with_retry(
+    method: str, url: str, *, attempts: int = REST_ATTEMPTS, **kwargs: Any
+) -> requests.Response:
+    """Issue one Supabase REST call, retrying transient failures.
+
+    Every call routed through here is idempotent — reads, the merge-duplicates
+    upsert and the retention delete all reach the same end state when repeated.
+    Non-retryable responses are returned for the caller to interpret.
+    """
+    failure: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            response = requests.request(method, url, **kwargs)
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            failure = exc
+        else:
+            if response.status_code not in RETRYABLE_STATUS:
+                return response
+            failure = IngestError(f"{method} {url} returned {response.status_code}")
+        if attempt + 1 < attempts:
+            time.sleep(REST_BACKOFF_SECONDS * (2**attempt))
+
+    raise IngestError(
+        f"{method} request failed after {attempts} attempts: "
+        f"{sanitize_error(failure or IngestError('no response'))}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # ECMWF retrieval
 # ---------------------------------------------------------------------------
@@ -159,15 +203,46 @@ def discover_latest_cycle(client: Client) -> datetime:
     raise IngestError(f"could not discover the latest ECMWF cycle: {last_error}")
 
 
+def _download_with_deadline(client: Client, param: str, cycle: datetime, target: str) -> None:
+    """Run one retrieve under a hard wall-clock deadline.
+
+    The client offers neither a transfer timeout nor request kwargs, so a
+    stalled socket would otherwise run until the workflow job is killed.
+    """
+    if not hasattr(signal, "SIGALRM"):  # POSIX only; Windows dev boxes skip this
+        client.retrieve(
+            target=target,
+            date=cycle.strftime("%Y%m%d"),
+            time=cycle.hour,
+            type="fc",
+            step=STEPS,
+            param=[param],
+        )
+        return
+
+    def expire(signum: int, frame: Any) -> None:
+        raise IngestError(
+            f"{param}: download exceeded {DOWNLOAD_DEADLINE_SECONDS}s deadline"
+        )
+
+    previous = signal.signal(signal.SIGALRM, expire)
+    signal.setitimer(signal.ITIMER_REAL, DOWNLOAD_DEADLINE_SECONDS)
+    try:
+        client.retrieve(
+            target=target,
+            date=cycle.strftime("%Y%m%d"),
+            time=cycle.hour,
+            type="fc",
+            step=STEPS,
+            param=[param],
+        )
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
 def download(client: Client, param: str, cycle: datetime, target: str) -> str:
-    client.retrieve(
-        target=target,
-        date=cycle.strftime("%Y%m%d"),
-        time=cycle.hour,
-        type="fc",
-        step=STEPS,
-        param=[param],
-    )
+    _download_with_deadline(client, param, cycle, target)
     return target
 
 
@@ -283,7 +358,8 @@ class Supabase:
         }
 
     def already_ingested(self, reference: datetime) -> bool:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{self.base}/climate_ingest_log",
             headers=self.headers,
             params={
@@ -298,7 +374,8 @@ class Supabase:
         return bool(response.json())
 
     def previous_reference(self, current: datetime) -> datetime | None:
-        response = requests.get(
+        response = request_with_retry(
+            "GET",
             f"{self.base}/climate_forecasts",
             headers=self.headers,
             params={
@@ -319,7 +396,8 @@ class Supabase:
         written = 0
         for start in range(0, len(rows), 500):
             batch = list(rows[start : start + 500])
-            response = requests.post(
+            response = request_with_retry(
+                "POST",
                 f"{self.base}/climate_forecasts",
                 headers={**self.headers, "Prefer": "resolution=merge-duplicates,return=minimal"},
                 params={
@@ -337,7 +415,8 @@ class Supabase:
 
     def prune_older_than(self, keep: Sequence[datetime]) -> None:
         quoted = ",".join(f'"{iso(reference)}"' for reference in keep)
-        response = requests.delete(
+        response = request_with_retry(
+            "DELETE",
             f"{self.base}/climate_forecasts",
             headers=self.headers,
             params={
@@ -352,12 +431,17 @@ class Supabase:
             )
 
     def log(self, **row: Any) -> None:
-        requests.post(
+        response = request_with_retry(
+            "POST",
             f"{self.base}/climate_ingest_log",
             headers={**self.headers, "Prefer": "return=minimal"},
             json=row,
             timeout=30,
         )
+        if response.status_code >= 400:
+            raise IngestError(
+                f"ingest log write failed ({response.status_code}): {response.text[:200]}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -424,7 +508,62 @@ def build_rows(cycle: datetime, dataset_dir: str, client: Client) -> list[dict[s
         for step, millimetres in interval_totals(raw_mm, steps, mode):
             add(city, "precipitation", "mm", step, millimetres, "nearest")
 
+    check_complete(rows)
     return rows
+
+
+EXPECTED_VARIABLES = frozenset(
+    {"temperature_2m", "pressure_msl", "wind_speed", "wind_direction", "precipitation"}
+)
+
+
+def check_complete(rows: Sequence[dict[str, Any]]) -> None:
+    """Refuse to write a partial cycle.
+
+    A truncated GRIB decode yields a reduced row set that would otherwise be
+    written and logged as a success. Enforced: every city carries every
+    variable at every step, the instantaneous variables cover the full STEPS
+    window, and precipitation keeps its one-step-shorter accumulation span.
+    """
+    steps: dict[str, set[int]] = {}
+    present: set[tuple[str, str, int]] = set()
+    for row in rows:
+        steps.setdefault(row["variable"], set()).add(row["forecast_step"])
+        present.add((row["city_key"], row["variable"], row["forecast_step"]))
+
+    absent = EXPECTED_VARIABLES - set(steps)
+    if absent:
+        raise IngestError(f"incomplete cycle: no data for {', '.join(sorted(absent))}")
+
+    short = [
+        f"{variable} ({len(steps[variable])}/{len(STEPS)} steps)"
+        for variable in sorted(EXPECTED_VARIABLES - {"precipitation"})
+        if steps[variable] != set(STEPS)
+    ]
+    if short:
+        raise IngestError(f"incomplete cycle: truncated forecast window {', '.join(short)}")
+
+    # Precipitation is accumulated, so it legitimately covers one step fewer —
+    # but exactly one, or the window is either truncated or misaligned.
+    expected_precipitation_steps = len(STEPS) - 1
+    if len(steps["precipitation"]) != expected_precipitation_steps:
+        raise IngestError(
+            f"incomplete cycle: precipitation covers only "
+            f"{len(steps['precipitation'])} of {expected_precipitation_steps} expected steps"
+        )
+
+    missing = [
+        f"{city}/{variable}/{step}h"
+        for city in sorted(CITIES)
+        for variable in sorted(EXPECTED_VARIABLES)
+        for step in sorted(steps[variable])
+        if (city, variable, step) not in present
+    ]
+    if missing:
+        raise IngestError(
+            f"incomplete cycle: {len(missing)} rows missing "
+            f"(e.g. {', '.join(missing[:5])})"
+        )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -483,9 +622,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         keep = [cycle]
         previous = db.previous_reference(cycle)
-        if previous is not None:
+        if previous is None:
+            # Keep both cycles or none: without a confirmed predecessor this
+            # delete would clear every older cycle for the three cities.
+            print("no previous cycle found — skipping retention prune", flush=True)
+        else:
             keep.append(previous)
-        db.prune_older_than(keep[:RETENTION_RUNS])
+            db.prune_older_than(keep[:RETENTION_RUNS])
 
         db.log(
             started_at=started_at,

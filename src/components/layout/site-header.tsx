@@ -51,7 +51,7 @@ isActive && 'text-foreground',
 
 <div className="flex shrink-0 items-center gap-2">
 <span className="hidden rounded-full border border-hairline bg-veil px-3 py-1.5 text-[0.6rem] font-medium uppercase tracking-[0.16em] text-haze lg:inline-flex">
-Preview build
+Live data
 </span>
 <ThemeToggle />
 {signedIn ? (
